@@ -15,3 +15,8 @@ reports/
 
 .vscode/
 .idea/s
+artifacts/*
+!artifacts/.gitkeep
+
+outputs/*
+!outputs/.gitkeep
