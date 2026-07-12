@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
-from xgboost import XGBRegressor
+from src.models.config import build_xgboost_model
 
 from src.backtesting.recursive_backtest import (
     run_recursive_backtest,
@@ -20,33 +20,8 @@ HISTORY_END_DATE = pd.Timestamp(
     "2017-04-05"
 )
 
-FINAL_N_ESTIMATORS = 409
 
 
-def build_cutoff_model() -> XGBRegressor:
-    """
-    Build the same frozen XGBoost configuration used
-    for the current forecasting system.
-
-    Important:
-    This model will be trained only on information
-    available through HISTORY_END_DATE.
-    """
-    return XGBRegressor(
-        objective="reg:squarederror",
-        n_estimators=FINAL_N_ESTIMATORS,
-        learning_rate=0.05,
-        max_depth=8,
-        min_child_weight=5,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        reg_alpha=0.1,
-        reg_lambda=1.0,
-        tree_method="hist",
-        eval_metric="rmse",
-        n_jobs=-1,
-        random_state=42,
-    )
 
 
 def main() -> None:
@@ -194,8 +169,7 @@ def main() -> None:
     print(
         "\nTraining cutoff-specific XGBoost..."
     )
-
-    model = build_cutoff_model()
+    model = build_xgboost_model()
 
     model.fit(
         X_train,

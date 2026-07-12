@@ -157,4 +157,5 @@ def test_negative_forecast_rejected():
         make_inventory_decision(
             forecast_values=[10, -2, 30],
             current_inventory=50,
+      
         )

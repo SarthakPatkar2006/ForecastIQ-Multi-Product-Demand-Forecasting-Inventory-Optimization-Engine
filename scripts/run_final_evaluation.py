@@ -1,6 +1,6 @@
 import numpy as np
 
-from xgboost import XGBRegressor
+from src.models.config import build_xgboost_model
 
 from src.data.loader import load_sales_data
 from src.features.build_features import build_features
@@ -13,32 +13,8 @@ from src.splitting.temporal_split import (
 
 DATA_PATH = "data/raw/train.csv"
 
-FINAL_N_ESTIMATORS = 409
 
 
-def build_final_model() -> XGBRegressor:
-    """
-    Build final XGBoost model.
-
-    Hyperparameters are frozen before test evaluation.
-    Tree count is based on the previously selected
-    validation best iteration (~408).
-    """
-    return XGBRegressor(
-        objective="reg:squarederror",
-        n_estimators=FINAL_N_ESTIMATORS,
-        learning_rate=0.05,
-        max_depth=8,
-        min_child_weight=5,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        reg_alpha=0.1,
-        reg_lambda=1.0,
-        tree_method="hist",
-        eval_metric="rmse",
-        n_jobs=-1,
-        random_state=42,
-    )
 
 
 def main() -> None:
@@ -127,7 +103,7 @@ def main() -> None:
         "on complete development history..."
     )
 
-    model = build_final_model()
+    model = build_xgboost_model()
 
     model.fit(
         X_development,

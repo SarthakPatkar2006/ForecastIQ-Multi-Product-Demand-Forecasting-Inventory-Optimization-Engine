@@ -5,7 +5,7 @@ from src.models.persistence import (
 )
 from src.models.train import FEATURE_COLUMNS
 
-from xgboost import XGBRegressor
+from src.models.config import build_xgboost_model
 
 
 DATA_PATH = "data/raw/train.csv"
@@ -14,25 +14,6 @@ MODEL_PATH = (
     "artifacts/forecastiq_xgboost.json"
 )
 
-FINAL_N_ESTIMATORS = 409
-
-
-def build_production_model() -> XGBRegressor:
-    return XGBRegressor(
-        objective="reg:squarederror",
-        n_estimators=FINAL_N_ESTIMATORS,
-        learning_rate=0.05,
-        max_depth=8,
-        min_child_weight=5,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        reg_alpha=0.1,
-        reg_lambda=1.0,
-        tree_method="hist",
-        eval_metric="rmse",
-        n_jobs=-1,
-        random_state=42,
-    )
 
 
 def main() -> None:
@@ -67,7 +48,7 @@ def main() -> None:
         "on all available history..."
     )
 
-    model = build_production_model()
+    model = build_xgboost_model()
 
     model.fit(
         X,
