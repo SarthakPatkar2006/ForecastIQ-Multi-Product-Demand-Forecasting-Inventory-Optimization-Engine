@@ -1,596 +1,356 @@
 # ForecastIQ
 
-**Multi-Product Demand Forecasting & Inventory Optimization Engine**
+> End-to-End Multi-Product Demand Forecasting & Inventory Optimization Engine using XGBoost, Time-Series Forecasting, Recursive Prediction, and FastAPI.
 
-ForecastIQ is an end-to-end machine learning project for forecasting retail demand across multiple store-product time series and converting forecasts into inventory decisions.
+## Overview
 
-The project focuses on leakage-safe time-series feature engineering, chronological validation, forecasting baseline comparison, and scalable tabular ML models.
+ForecastIQ is an end-to-end machine learning system for demand forecasting and inventory optimization. It predicts future product demand across multiple stores using a leakage-safe time-series forecasting pipeline and converts forecasts into actionable inventory recommendations.
 
-> **Current status:** Forecasting pipeline under active development. Data ingestion, validation, leakage-safe feature engineering, temporal splitting, baseline models, Ridge Regression, and Random Forest experiments are complete.
-
----
-
-## Problem Statement
-
-Retail inventory planning involves two competing risks:
-
-* **Understocking** → stockouts, lost sales, poor service levels
-* **Overstocking** → holding costs, dead stock, capital lock-in
-
-Static reorder rules often fail when demand changes due to:
-
-* weekly seasonality
-* product-specific demand patterns
-* store-level variation
-* calendar effects
-* demand volatility
-
-ForecastIQ aims to estimate future demand and use those forecasts to support inventory decisions such as:
-
-* safety stock
-* reorder point
-* stockout risk score
-* recommended order quantity
+The project follows production-style machine learning practices including chronological data splitting, walk-forward validation, recursive forecasting, model persistence, API deployment, and automated testing.
 
 ---
 
-## Current System Pipeline
+# Features
 
-```text
-Historical Retail Sales
-        ↓
-Data Ingestion
-        ↓
-Schema Normalization
-        ↓
-Data Validation
-        ↓
-Leakage-Safe Feature Engineering
-        ↓
-Chronological 70/15/15 Split
-        ↓
-Forecasting Baselines
-        ↓
-Machine Learning Models
-        ↓
-MAE / RMSE / WAPE Evaluation
-        ↓
-Best Model Selection
-        ↓
-Multi-Step Demand Forecasting
-        ↓
-Inventory Decision Engine
-```
+- Leakage-safe time-series feature engineering
+- Temporal train / validation / test split
+- Walk-forward cross-validation
+- Fold-local temporal early stopping
+- Recursive multi-step forecasting
+- XGBoost forecasting model
+- Inventory optimization engine
+- FastAPI REST API
+- Model persistence
+- Feature importance analysis
+- Comprehensive unit testing
+- Production-style project structure
 
 ---
 
-## Dataset
+# Dataset
 
-ForecastIQ currently uses the **Store Item Demand Forecasting** dataset.
+**Kaggle Store Item Demand Forecasting Challenge**
 
-### Raw schema
+Dataset Statistics:
 
-| Column  | Description        |
-| ------- | ------------------ |
-| `date`  | Observation date   |
-| `store` | Store identifier   |
-| `item`  | Product identifier |
-| `sales` | Units sold         |
-
-### Normalized schema
-
-| Raw Column | ForecastIQ Column |
-| ---------- | ----------------- |
-| `date`     | `date`            |
-| `store`    | `store_id`        |
-| `item`     | `product_id`      |
-| `sales`    | `sales`           |
-
-### Dataset characteristics
-
-* **913,000 observations**
-* **10 stores**
-* **50 products**
-* **500 store-product demand series**
-* Daily observations
-* Date range: **2013-01-01 to 2017-12-31**
-
-Each `(store_id, product_id)` pair is treated as an independent demand series during lag and rolling-feature construction.
+- 913,000 historical observations
+- 10 Stores
+- 50 Products
+- 500 Independent Demand Series
+- Daily Sales
+- Date Range:
+  - 2013-01-01
+  - 2017-12-31
 
 ---
 
-## Leakage-Safe Feature Engineering
+# Project Architecture
 
-ForecastIQ generates time-series predictors independently for every store-product series.
-
-### Calendar features
-
-* `day_of_week`
-* `day_of_month`
-* `week_of_year`
-* `month`
-* `quarter`
-* `is_weekend`
-
-### Lag features
-
-* `lag_1`
-* `lag_7`
-* `lag_14`
-* `lag_28`
-
-### Rolling mean features
-
-* `rolling_mean_7`
-* `rolling_mean_14`
-* `rolling_mean_28`
-
-### Rolling standard deviation features
-
-* `rolling_std_7`
-* `rolling_std_14`
-
-### Leakage prevention
-
-Rolling statistics are shifted before aggregation:
-
-```python
-series.shift(1).rolling(window=7).mean()
 ```
-
-This ensures the current target value never contributes to its own predictor features.
-
-Feature engineering is also grouped by:
-
-```text
-(store_id, product_id)
-```
-
-preventing historical values from crossing demand-series boundaries.
-
----
-
-## Time-Aware Data Splitting
-
-Random train-test splitting is intentionally prohibited.
-
-ForecastIQ uses chronological date boundaries:
-
-```text
-Oldest 70% of dates
-        ↓
-Training
-
-Next 15% of dates
-        ↓
-Validation
-
-Newest 15% of dates
-        ↓
-Test
-```
-
-The split operates on **unique dates**, ensuring all observations from the same date remain in exactly one partition.
-
-This prevents:
-
-* future-data leakage
-* date overlap
-* unrealistic random validation
-* partial splitting of panel observations from the same date
-
----
-
-## Forecasting Models
-
-### 1. Last Value Baseline
-
-Predicts current demand using the previous observation:
-
-```text
-Forecast(t) = Demand(t - 1)
-```
-
-### 2. Seasonal Naive Baseline
-
-Uses demand from seven days earlier:
-
-```text
-Forecast(t) = Demand(t - 7)
-```
-
-### 3. Ridge Regression
-
-Linear ML baseline using:
-
-* one-hot encoded store identifiers
-* one-hot encoded product identifiers
-* standardized numeric features
-* calendar features
-* lag features
-* rolling statistics
-
-### 4. Random Forest Regressor
-
-Nonlinear tree ensemble designed to capture interactions among:
-
-* recent demand
-* weekly seasonality
-* longer lag structure
-* rolling demand levels
-* demand volatility
-* store effects
-* product effects
-
----
-
-## Experimental Results
-
-All reported metrics below are generated from actual validation experiments.
-
-| Model             |        MAE |       RMSE |       WAPE |
-| ----------------- | ---------: | ---------: | ---------: |
-| Last Value        |    10.7357 |    14.7017 |     19.63% |
-| Seasonal Naive    |     8.5910 |    11.2863 |     15.71% |
-| Ridge Regression  |     6.7119 |     8.7766 |     12.38% |
-| **Random Forest** | **6.1260** | **7.9869** | **11.30%** |
-
-### Current best model
-
-**Random Forest**
-
-Current validation WAPE:
-
-```text
-11.30%
-```
-
-### Observations
-
-The Seasonal Naive model substantially outperforms the Last Value baseline, indicating meaningful weekly demand structure.
-
-Ridge Regression improves WAPE from:
-
-```text
-15.71% → 12.38%
-```
-
-This demonstrates that engineered calendar, lag, rolling, store, and product features contain predictive signal.
-
-Random Forest further improves WAPE to:
-
-```text
-11.30%
-```
-
-indicating that nonlinear interactions provide additional forecasting value.
-
----
-
-## Evaluation Metrics
-
-### Mean Absolute Error — MAE
-
-Measures average absolute forecast error.
-
-```text
-MAE = mean(|Actual - Predicted|)
-```
-
-### Root Mean Squared Error — RMSE
-
-Penalizes larger forecasting errors more strongly.
-
-```text
-RMSE = sqrt(mean((Actual - Predicted)²))
-```
-
-### Weighted Absolute Percentage Error — WAPE
-
-Primary business-oriented forecasting metric.
-
-```text
-WAPE = Σ|Actual - Predicted| / Σ|Actual|
-```
-
-Lower values indicate better forecasting performance.
-
----
-
-## Testing
-
-ForecastIQ includes automated tests for critical time-series invariants.
-
-Current test coverage verifies:
-
-* lag features use historical values only
-* rolling means exclude the current target
-* lag features do not cross store-product boundaries
-* temporal splits contain no date overlap
-* chronological ordering is preserved
-* expected split ratios are maintained
-* observations from the same date stay together
-* invalid split ratios are rejected
-* baseline forecasts use correct historical values
-* baseline forecasts do not cross series boundaries
-* MAE calculation
-* RMSE calculation
-* WAPE calculation
-* zero-demand WAPE edge cases
-
-Run all tests:
-
-```bash
-pytest -v
-```
-
-Current status:
-
-```text
-16 passed
+Historical Sales Data
+        │
+        ▼
+Feature Engineering
+        │
+        ▼
+Temporal Train / Validation / Test Split
+        │
+        ▼
+Walk-Forward Validation
+        │
+        ▼
+Temporal Early Stopping
+        │
+        ▼
+Final XGBoost Model
+        │
+        ▼
+Recursive Multi-Step Forecasting
+        │
+        ▼
+Inventory Optimization
+        │
+        ▼
+FastAPI Inference API
 ```
 
 ---
 
-## Project Structure
+# Project Structure
 
-```text
+```
 ForecastIQ/
+
+├── api/
+│   ├── inventory.py
+│   ├── main.py
+│   ├── predictor.py
+│   ├── schemas.py
+│   └── utils.py
+│
+├── artifacts/
+│   └── forecastiq_xgboost.json
 │
 ├── data/
-│   ├── raw/
-│   └── processed/
+│   └── raw/
+│
+├── outputs/
+│   ├── feature_importance.csv
+│   ├── forecast_7_day.csv
+│   └── inventory_recommendations.csv
 │
 ├── scripts/
-│   ├── run_baselines.py
-│   ├── run_ridge.py
-│   └── run_random_forest.py
+│   ├── create_inventory_template.py
+│   ├── generate_inventory_recommendations.py
+│   ├── run_final_evaluation.py
+│   ├── run_recursive_evaluation.py
+│   ├── run_walk_forward.py
+│   └── train_final_model.py
 │
 ├── src/
+│   ├── backtesting/
 │   ├── data/
-│   │   ├── loader.py
-│   │   └── validator.py
-│   │
 │   ├── features/
-│   │   └── build_features.py
-│   │
+│   ├── forecasting/
+│   ├── inventory/
 │   ├── models/
-│   │   ├── baselines.py
-│   │   ├── evaluate.py
-│   │   └── train.py
-│   │
 │   └── splitting/
-│       └── temporal_split.py
 │
 ├── tests/
-│   ├── test_baselines.py
-│   ├── test_evaluate.py
-│   ├── test_features.py
-│   └── test_temporal_split.py
 │
-├── .gitignore
-├── pytest.ini
 ├── requirements.txt
-└── README.md
+├── README.md
+└── pytest.ini
 ```
 
 ---
 
-## Installation
+# Feature Engineering
 
-### 1. Clone the repository
+ForecastIQ generates leakage-safe time-series features using only historical observations.
+
+### Calendar Features
+
+- Day of Week
+- Day of Month
+- Week of Year
+- Month
+- Quarter
+- Weekend Indicator
+
+### Lag Features
+
+- Lag-1
+- Lag-7
+- Lag-14
+- Lag-28
+
+### Rolling Statistics
+
+- Rolling Mean (7)
+- Rolling Mean (14)
+- Rolling Mean (28)
+- Rolling Std (7)
+- Rolling Std (14)
+
+### Entity Features
+
+- Store ID
+- Product ID
+
+---
+
+# Models
+
+## Baseline Models
+
+- Last Value Forecast
+- Seasonal Naive Forecast
+- Ridge Regression
+- Random Forest
+
+## Final Model
+
+- XGBoost Regressor
+
+---
+
+# Evaluation Strategy
+
+ForecastIQ follows strict chronological evaluation.
+
+Evaluation includes:
+
+- Temporal Validation Split
+- Walk-Forward Cross Validation
+- Fold-local Temporal Early Stopping
+- Final Untouched Holdout Test
+- Genuine Recursive Multi-Step Evaluation
+
+Metrics:
+
+- MAE
+- RMSE
+- WAPE
+
+---
+
+# Final Results
+
+| Evaluation | WAPE |
+|------------|------|
+| Validation | **10.84%** |
+| Walk-Forward Mean | **10.73%** |
+| Final Holdout Test | **10.05%** |
+| Recursive 7-Day Evaluation | **9.98%** |
+
+---
+
+# Inventory Optimization
+
+ForecastIQ transforms demand forecasts into inventory recommendations.
+
+Outputs include:
+
+- Expected Lead-Time Demand
+- Safety Stock
+- Reorder Point
+- Reorder Status
+- Recommended Order Quantity
+- Stockout Risk Score
+- Stockout Risk Level
+
+---
+
+# REST API
+
+Start the API
 
 ```bash
-git clone <your-repository-url>
-cd ForecastIQ
+uvicorn api.main:app --reload
 ```
 
-### 2. Create a virtual environment
+Open Swagger UI
 
-```bash
-python -m venv venv
+```
+http://127.0.0.1:8000/docs
 ```
 
-### 3. Activate the environment
+Available Endpoints
 
-#### Windows PowerShell
-
-```powershell
-.\venv\Scripts\Activate.ps1
 ```
+GET /
 
-#### Linux / macOS
+GET /health
 
-```bash
-source venv/bin/activate
-```
+POST /forecast
 
-### 4. Install dependencies
-
-```bash
-pip install -r requirements.txt
+POST /inventory
 ```
 
 ---
 
-## Running Experiments
+# Example Forecast Response
 
-### Run baseline experiments
-
-```bash
-python -m scripts.run_baselines
+```json
+{
+  "store_id": 1,
+  "product_id": 1,
+  "horizon": 7,
+  "forecast": [
+    13.09,
+    15.10,
+    15.11,
+    15.89,
+    16.95,
+    18.93,
+    20.03
+  ]
+}
 ```
 
-### Run Ridge Regression
+---
 
-```bash
-python -m scripts.run_ridge
+# Example Inventory Response
+
+```json
+{
+  "expected_lead_time_demand": 129,
+  "safety_stock": 22.19,
+  "reorder_point": 151.19,
+  "reorder_status": "REORDER_NOW",
+  "recommended_order_quantity": 51.19,
+  "stockout_risk_score": 0.3386,
+  "stockout_risk_level": "MEDIUM"
+}
 ```
 
-### Run Random Forest
+---
 
-```bash
-python -m scripts.run_random_forest
-```
+# Testing
 
-### Run tests
+Run all tests
 
 ```bash
 pytest -v
 ```
 
----
+Current Status
 
-## Roadmap
+```
+58 / 58 Tests Passed
+```
 
-### Completed
+Test Coverage
 
-* [x] Multi-product sales ingestion
-* [x] Schema normalization
-* [x] Data validation
-* [x] Missing-value detection
-* [x] Duplicate-observation detection
-* [x] Leakage-safe calendar features
-* [x] Lag features
-* [x] Rolling mean features
-* [x] Rolling volatility features
-* [x] Chronological 70/15/15 split
-* [x] Last Value baseline
-* [x] Seasonal Naive baseline
-* [x] MAE evaluation
-* [x] RMSE evaluation
-* [x] WAPE evaluation
-* [x] Ridge Regression
-* [x] Random Forest
-* [x] Automated tests for core temporal invariants
-
-### Next
-
-* [ ] Boosted-tree forecasting model
-* [ ] Walk-forward validation
-* [ ] Final model selection
-* [ ] Test-set evaluation
-* [ ] Multi-step recursive forecasting
-* [ ] Feature importance
-* [ ] Model persistence
-* [ ] Safety stock calculation
-* [ ] Reorder point calculation
-* [ ] Stockout risk scoring
-* [ ] Recommended order quantity
-* [ ] FastAPI inference endpoints
-* [ ] Streamlit dashboard
+- Feature Engineering
+- Temporal Splitting
+- Walk-Forward Validation
+- Recursive Forecasting
+- Recursive Backtesting
+- Inventory Optimization
+- Evaluation Metrics
+- Model Persistence
 
 ---
 
-## Planned Inventory Decision Engine
+# Technologies Used
 
-ForecastIQ will convert future demand forecasts into operational inventory recommendations.
+### Programming
 
-### Expected lead-time demand
+- Python
 
-```text
-Expected Lead-Time Demand
-=
-Average Forecast Demand × Lead Time
-```
+### Machine Learning
 
-### Safety stock
+- XGBoost
+- Scikit-learn
 
-```text
-Safety Stock
-=
-Z-score × Demand Standard Deviation × sqrt(Lead Time)
-```
+### Data Processing
 
-### Reorder point
+- Pandas
+- NumPy
 
-```text
-Reorder Point
-=
-Expected Lead-Time Demand + Safety Stock
-```
+### API
 
-### Reorder decision
+- FastAPI
 
-```text
-current_inventory <= reorder_point
-    → REORDER_NOW
+### Testing
 
-current_inventory <= reorder_point × 1.20
-    → MONITOR
-
-otherwise
-    → SUFFICIENT_STOCK
-```
-
-### Recommended quantity
-
-```text
-Recommended Quantity
-=
-Forecast Horizon Demand
-+
-Safety Stock
--
-Current Inventory
-```
-
-The final quantity will be clamped to a minimum of zero.
+- Pytest
 
 ---
 
-## Planned Stockout Risk Engine
+# Future Improvements
 
-The MVP will expose a bounded **risk score**:
-
-```text
-0.00 → 1.00
-```
-
-Risk categories:
-
-| Score     | Level  |
-| --------- | ------ |
-| 0.00–0.30 | LOW    |
-| 0.31–0.60 | MEDIUM |
-| 0.61–1.00 | HIGH   |
-
-The score will be documented explicitly as a **heuristic risk score**, not a calibrated probability of stockout.
+- CSV Upload Forecasting
+- Batch Forecasting
+- Docker Support
+- CI/CD Pipeline
+- Cloud Deployment
+- Interactive Dashboard
 
 ---
 
-## Tech Stack
+# License
 
-* Python 3.12
-* pandas
-* NumPy
-* scikit-learn
-* pytest
-
-Planned additions:
-
-* boosted-tree library
-* FastAPI
-* Streamlit
-* model persistence tooling
-
----
-
-## Engineering Principles
-
-ForecastIQ is built around the following constraints:
-
-* no random splitting for time-series evaluation
-* no current-target leakage into rolling features
-* no cross-series lag contamination
-* validation-driven model comparison
-* test-set isolation until final evaluation
-* reproducible model configuration
-* business-oriented forecast evaluation
-* explicit distinction between heuristic risk scores and calibrated probabilities
-
----
-
-## License
-
-This project is intended for educational, portfolio, and research purposes.
+This project is released under the MIT License.
