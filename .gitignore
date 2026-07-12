@@ -1,22 +1,32 @@
+# Python
 venv/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
 .env
 
+# IDE
+.vscode/
+.idea/
+
+# Data
 data/raw/*
 !data/raw/.gitkeep
 
 data/processed/*
 !data/processed/.gitkeep
 
-models/
-reports/
-
-.vscode/
-.idea/s
+# Model Artifacts
 artifacts/*
 !artifacts/.gitkeep
 
+# Generated Outputs
 outputs/*
 !outputs/.gitkeep
+
+# Reports
+reports/
+
+# Misc
+Thumbs.db
+.DS_Store
