@@ -48,6 +48,14 @@ def main() -> None:
         "service_level"
     ] = 0.95
 
+    inventory[
+        "inventory_source"
+    ] = "SCENARIO_DEFAULT"
+
+    inventory[
+        "scenario_name"
+    ] = "DEFAULT_DEMO"
+
     output_path = Path(
         OUTPUT_PATH
     )
@@ -72,9 +80,20 @@ def main() -> None:
         f"{output_path}"
     )
 
+    print("\nInventory Scenario")
+    print("-" * 30)
+
     print(
-        "\nWARNING: current_inventory=100 is "
-        "a scenario default, not observed stock data."
+        "Source: Scenario Template"
+    )
+
+    print(
+        "Inventory values are synthetic."
+    )
+
+    print(
+        "Replace inventory_state.csv with ERP/WMS "
+        "inventory exports for production use."
     )
 
 

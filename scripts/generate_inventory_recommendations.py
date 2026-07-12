@@ -29,6 +29,8 @@ REQUIRED_INVENTORY_COLUMNS = {
     "current_inventory",
     "lead_time_days",
     "service_level",
+    "inventory_source",
+    "scenario_name",
 }
 
 
@@ -55,7 +57,23 @@ def load_inventory_state(
             "Inventory state contains duplicate "
             "store-product rows."
         )
+    if (inventory["current_inventory"] < 0).any():
+        raise ValueError(
+            "Negative inventory values are not allowed."
+        )
 
+    if (inventory["lead_time_days"] < 1).any():
+        raise ValueError(
+            "Lead time must be at least one day."
+        )
+
+    if (
+        (inventory["service_level"] <= 0)
+        | (inventory["service_level"] >= 1)
+    ).any():
+        raise ValueError(
+            "Service level must be between 0 and 1."
+        )
     return inventory
 
 
@@ -239,6 +257,8 @@ def main() -> None:
                 "service_level": float(
                     row.service_level
                 ),
+                "inventory_source": row.inventory_source,
+                "scenario_name": row.scenario_name,
                 "historical_demand_std": float(
                     row.historical_demand_std
                 ),
@@ -276,24 +296,49 @@ def main() -> None:
         f"{output_path}"
     )
 
-    print("\nReorder status distribution:")
+    print("\nInventory Recommendation Summary")
+    print("=" * 40)
+    print(
+        f"Products evaluated: {len(result):,}"
+    )
+
+    print("\nReorder status:")
 
     print(
-        result[
-            "reorder_status"
-        ]
+        result["reorder_status"]
         .value_counts()
         .to_string()
     )
 
-    print("\nRisk level distribution:")
+    print("\nRisk level:")
+
+    print(
+        result["stockout_risk_level"]
+        .value_counts()
+        .to_string()
+    )
+
+    print(
+        "\nAverage reorder quantity: "
+        f"{result['recommended_order_quantity'].mean():.2f}"
+    )
+
+    print(
+        "Average stockout risk: "
+        f"{result['stockout_risk_score'].mean()*100:.2f}%"
+    )
+
+    print("\nScenario:")
 
     print(
         result[
-            "stockout_risk_level"
+            [
+                "inventory_source",
+                "scenario_name",
+            ]
         ]
-        .value_counts()
-        .to_string()
+        .drop_duplicates()
+        .to_string(index=False)
     )
 
     print("\nSample recommendations:")
